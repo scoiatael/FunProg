@@ -35,6 +35,7 @@ let reverse_map_tail f = let
     | [] -> acc
     | x :: xs -> reverse_map_acc ((f x) :: acc) xs
   in reverse_map_acc []
+
 let rec merge cmp = function
   | ([], l) -> l
   | (l, []) -> l
@@ -53,6 +54,19 @@ let merge_tail cmp = let
                             else
                               merge_acc (y :: acc) ((x :: xs), ys)
   in merge_acc []
+
+let rec merge_sort cmp = function
+  | [] -> []
+  | [x] -> [x]
+  | big_list ->
+    let
+      rec partition = function
+      | [] -> ([], [])
+      | [x] -> ([x], [])
+      | (x::y::zs) -> let (xs, ys) = partition zs in (x::xs, y::ys)
+    in let
+      (p1,p2) = partition big_list
+    in merge_tail cmp (merge_sort cmp p1, merge_sort cmp p2)
 
 let benchmark_merge lss = let benchmark_func f = let
                               cur = Sys.time ()
