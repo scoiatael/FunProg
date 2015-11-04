@@ -144,8 +144,8 @@ let prod : int btree -> int =
   let rec aux : (int -> unit) -> int btree -> unit = fun c -> function
     | Leaf -> c 1
     | Node (ls,a,rs) -> aux (fun lp -> aux (fun rp -> c(lp * rp * a)) rs) ls
-  let ret = ref 0 in
-  in fun tree -> aux (fun v -> ret := v) tree; !ret
+  in let ret = ref 0 in
+  fun tree -> aux (fun v -> ret := v) tree; !ret
 
 let better_prod : int btree -> int =
   let ret = ref 0 in
