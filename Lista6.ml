@@ -120,7 +120,7 @@ let ahirem : 'a array -> 'a array =
       | Some t -> (k-1, Some (aux (k-1) t))
       | _ -> assert false
 
-(* Zadanie 4 *)
+(* Exercise 4 *)
 
 type 'a sprintf_cont = string -> 'a
 type ('b, 'a) sprintf_resolv = string -> ('b -> 'a)
@@ -132,18 +132,139 @@ let append_cont
 let inr : 'a sprintf_cont -> (int, 'a) sprintf_resolv =
   append_cont string_of_int
 
-let eol : 'a sprintf_cont -> string -> 'a =
-  fun con str -> con (str ^ "\n")
-
-let lit : string -> 'a sprintf_cont -> string -> 'a =
-  fun s1 con str -> con (str ^ s1)
-
 let flt : 'a sprintf_cont -> (float, 'a) sprintf_resolv =
   append_cont string_of_float
 
 let str : 'a sprintf_cont -> (string, 'a) sprintf_resolv =
   append_cont ((^) "")
 
+let eol : 'a sprintf_cont -> string -> 'a =
+  fun con str -> con (str ^ "\n")
+
+let lit : string -> 'a sprintf_cont -> string -> 'a =
+  fun s1 con str -> con (str ^ s1)
+
 let (++) f1 f2 c = f1 @@ f2 c
 
 let sprintf f = f print_string @@ ""
+
+(* Excercise 5 *)
+(* prolog.ml *)
+
+(* An atom is either a propositional variable or an alternative of two goals. *)
+type atom =
+  | Atom of string
+  | Or of goal * goal
+(* A goal is a list of atoms. *)
+and goal = atom list
+(* A clause consists of a head (a propositional variable) and a body (a goal). *)
+type clause = string * goal
+(* A Prolog program is a list of clauses. *)
+type program = clause list
+
+(* Search a program for a clause with a given head. *)
+let rec lookup x pgm =
+  match pgm with
+    | [] ->
+      None
+    | (y, g) :: p ->
+      if x = y then Some g else lookup x p
+
+(*
+A propositional Prolog interpreter written in CPS with two layers of continuations:
+a success and a failure continuation. The failure continuation is parameterless and
+it specifies what should happen next in case of a failure in the current goal. The
+success continuation takes a failure continuation as an argument and it specifies
+what should happen next in case the current goal is satisfied.
+*)
+
+(*      eval_atom : atom -> program -> ((unit -> 'a) -> 'a) -> (unit -> 'a) -> 'a *)
+let rec eval_atom a p sc fc =
+  match a with
+  | Atom x ->
+    (match (lookup x p) with
+     | None ->
+       fc ()
+     | Some g ->
+       eval_goal g p sc fc)
+  | Or (g1, g2) ->
+    eval_goal g1 p sc (fun () -> eval_goal g2 p sc fc)
+
+(*  eval_goal : goal -> program -> ((unit -> 'a) -> 'a) -> (unit -> 'a) -> 'a  *)
+and eval_goal g p sc fc =
+  match g with
+    | [] ->
+      sc fc
+    | a :: g ->
+      eval_atom a p (fun fc' -> eval_goal g p sc fc') fc
+
+(*  run : goal ->  program -> bool  *)
+(* To make this interpreter tail recursive, change unit to arbitrary state *)
+let run g p = eval_goal g p (fun fc -> 1 + fc ()) (fun () -> 0)
+
+(* tests *)
+
+let p1 = [("a", [Atom "b"; Atom "c"]);
+    ("b", [])]
+
+let p2 = [("a", [Atom "b"; Or ([Atom "c"], [Atom "d"]); Atom "e"]);
+    ("b", [Atom "d"]);
+    ("d", []);
+    ("e", [Atom "d"])]
+
+let p3 = [("a", [Atom "b"; Or ([Atom "c"], [Atom "d"]); Atom "e"]);
+    ("b", [Atom "d"]);
+    ("c", []);
+    ("d", []);
+    ("e", [Atom "d"])]
+
+let g1 = [Atom "a"]
+
+let v1_1 = run g1 p1
+let v1_2 = run g1 p2
+let v1_3 = run g1 p3
+
+(* eof *)
+
+type regexp =
+  | Atom of char
+  | And of regexp * regexp
+  | Or of regexp * regexp
+  | Star of regexp
+
+type 'a failure_cont = unit -> 'a
+let rec match_regexp
+  : regexp -> char list -> (char list -> 'a failure_cont -> 'a) -> 'a failure_cont -> 'a
+  = fun r chs sc fc -> match r with
+    | Atom(a) -> (match chs with
+        | (c::chsr) -> if a = c then sc chsr fc else fc ()
+        | _ -> fc ())
+    | And(a,b) -> match_regexp a chs (fun chsr nfc -> match_regexp b chsr sc nfc) fc
+    | Or(a,b) -> match_regexp a chs sc (fun _ -> match_regexp b chs sc fc)
+    | Star(a) ->
+      let recover_fc = fun nchs _ -> sc nchs fc in
+      let rec greedy_sc = fun nchs nfc -> match_regexp a nchs greedy_sc (recover_fc nchs) in
+      match_regexp a chs greedy_sc (recover_fc chs)
+
+let run : regexp -> char list -> bool =
+  fun r chs -> match_regexp r chs (fun nchs nfc -> if List.length nchs == 0 then true else nfc ()) (fun _ -> false)
+
+(* tests *)
+
+let p1 = And(Star(Atom('a')), Atom('b'))
+let g11 = ['a';'a';'a';'b']
+let g12 = ['b']
+let g13 = ['a']
+
+let p2 = Or(Atom('a'), Atom('b'))
+let g21 = ['a']
+let g22 = ['b']
+let g23 = ['a';'b']
+
+let v1_1 = run p1 g11
+let v1_2 = run p1 g12
+let v1_3 = run p1 g13
+
+let v2_1 = run p2 g21
+let v2_2 = run p2 g22
+let v2_3 = run p2 g23
