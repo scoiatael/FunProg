@@ -2,15 +2,22 @@
 
 ;; Task 2
 (define (count-change num vals)
-  (define (count-change-aux v)
-    (if (<= num v)
-        (if (= num v) 1 0)
-        (memoized-count-change (- num v))))
+  (define (count-change-aux n v vs)
+    (if (<= n v)
+        (if (= n v) 1 0)
+        (memoized-count-change `(,(- n v) ,vs))))
   (define memoized-count-change
-    (memoized
-     (lambda (val)
-       (foldl + 0 (map count-change-aux vals)))))
-  (memoized-count-change num))
+    (memoized (lambda (input)
+                (define n (car input))
+                (define vs (cadr input))
+                (if (empty? vs)
+                    0
+                    (let ([mv (first vs)]
+                          [mrest (rest vs)])
+                      (+
+                       (count-change-aux n mv vs)
+                       (memoized-count-change `(,n ,mrest))))))))
+  (memoized-count-change `(,num ,(sort vals >))))
 
 (define (memoized fun)
   (let ([cache (make-hash)])
